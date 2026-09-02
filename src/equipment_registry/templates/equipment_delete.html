@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Excluir {{ item.name }} · NOC Vault{% endblock %}
+{% block content %}
+<section class="form-card danger-card">
+  <a class="back" href="{{ url_for('index') }}">← Cancelar e voltar</a>
+  <div class="eyebrow danger-text">AÇÃO DESTRUTIVA</div>
+  <h1>Excluir equipamento</h1>
+  <p>Esta ação removerá o cadastro e a credencial criptografada de <strong>{{ item.name }}</strong>.</p>
+  <p class="muted">Para confirmar, digite exatamente <code>{{ item.name }}</code>.</p>
+  <form method="post" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>Nome do equipamento
+      <input name="confirmation" autocomplete="off" required autofocus>
+    </label>
+    <div class="form-actions">
+      <a class="button ghost" href="{{ url_for('index') }}">Cancelar</a>
+      <button class="button danger" type="submit">Excluir definitivamente</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

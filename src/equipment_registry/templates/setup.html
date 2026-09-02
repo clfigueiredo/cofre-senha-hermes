@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Configuração inicial · NOC Vault{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <div class="eyebrow">PRIMEIRO ACESSO</div>
+  <h1>Proteja o inventário</h1>
+  <p class="muted">Crie a senha administrativa. Ela será armazenada apenas como hash scrypt e não poderá ser recuperada.</p>
+  <form method="post" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>Senha administrativa
+      <input type="password" name="password" minlength="12" autocomplete="new-password" required autofocus>
+    </label>
+    <label>Confirme a senha
+      <input type="password" name="password_confirmation" minlength="12" autocomplete="new-password" required>
+    </label>
+    <button class="button primary" type="submit">Criar acesso seguro</button>
+  </form>
+</section>
+{% endblock %}

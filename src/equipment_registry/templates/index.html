@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Equipamentos · NOC Vault{% endblock %}
+{% block content %}
+<section class="page-head">
+  <div>
+    <div class="eyebrow">INVENTÁRIO SEGURO</div>
+    <h1>Equipamentos</h1>
+    <p class="muted">{{ equipment|length }} equipamento{% if equipment|length != 1 %}s{% endif %} cadastrado{% if equipment|length != 1 %}s{% endif %}.</p>
+  </div>
+  <a class="button primary" href="{{ url_for('equipment_new') }}">+ Novo equipamento</a>
+</section>
+
+{% if equipment %}
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Nome</th><th>Endereço</th><th>Usuário</th><th>Porta SSH</th><th>Marca</th><th class="actions">Ações</th></tr></thead>
+    <tbody>
+    {% for item in equipment %}
+      <tr>
+        <td><strong>{{ item.name }}</strong></td>
+        <td><code>{{ item.ip }}</code></td>
+        <td><code>{{ item.username }}</code></td>
+        <td><code>{{ item.ssh_port }}</code></td>
+        <td><span class="badge">{{ item.brand }}</span></td>
+        <td class="actions"><a href="{{ url_for('equipment_edit', equipment_id=item.id) }}">Editar</a><span class="separator">·</span><a class="danger-link" href="{{ url_for('equipment_delete', equipment_id=item.id) }}">Excluir</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<section class="empty">
+  <div class="empty-icon">⌁</div>
+  <h2>Nenhum equipamento cadastrado</h2>
+  <p class="muted">Cadastre o primeiro equipamento para iniciar seu inventário.</p>
+  <a class="button primary" href="{{ url_for('equipment_new') }}">Cadastrar equipamento</a>
+</section>
+{% endif %}
+{% endblock %}

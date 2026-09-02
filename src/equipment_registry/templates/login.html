@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Acesso · NOC Vault{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <div class="eyebrow">ACESSO RESTRITO</div>
+  <h1>Equipamentos de infraestrutura</h1>
+  <p class="muted">Entre para consultar o inventário. As credenciais dos equipamentos nunca são exibidas nesta interface.</p>
+  <form method="post" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>Usuário
+      <input name="username" autocomplete="username" value="admin" required>
+    </label>
+    <label>Senha administrativa
+      <input type="password" name="password" autocomplete="current-password" required autofocus>
+    </label>
+    <button class="button primary" type="submit">Entrar</button>
+  </form>
+</section>
+{% endblock %}

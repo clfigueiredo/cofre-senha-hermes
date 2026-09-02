@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: uv sync --frozen --extra dev
+      - run: uv run pytest -q
+      - run: uv run ruff check .
+      - run: uv run bandit -q -r src scripts
+      - run: uv run pip-audit
+      - run: uv build
+      - name: Reject committed tokens and private keys
+        shell: bash
+        run: |
+          if git grep -nE 'gh[pousr]_[A-Za-z0-9_]{20,}|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY' -- ':!tests'; then
+            echo 'Possível segredo encontrado no repositório.' >&2
+            exit 1
+          fi

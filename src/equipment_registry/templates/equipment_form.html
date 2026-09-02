@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}{% if item %}Editar{% else %}Cadastrar{% endif %} · NOC Vault{% endblock %}
+{% block content %}
+<section class="form-card">
+  <a class="back" href="{{ url_for('index') }}">← Voltar ao inventário</a>
+  <div class="eyebrow">{% if item %}ATUALIZAR CADASTRO{% else %}NOVO CADASTRO{% endif %}</div>
+  <h1>{% if item %}Editar equipamento{% else %}Cadastrar equipamento{% endif %}</h1>
+  <form method="post" class="form-grid">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label class="full">Nome do equipamento
+      <input name="name" maxlength="100" value="{{ item.name if item else request.form.get('name', '') }}" placeholder="Ex.: SW-CORE-01" required autofocus>
+    </label>
+    <label>Endereço IP
+      <input name="ip" value="{{ item.ip if item else request.form.get('ip', '') }}" placeholder="192.0.2.10" required>
+    </label>
+    <label>Porta SSH
+      <input type="number" name="ssh_port" min="1" max="65535" value="{{ item.ssh_port if item else request.form.get('ssh_port', '22') }}" required>
+    </label>
+    <label class="full">Usuário SSH
+      <input name="username" maxlength="64" value="{{ item.username if item else request.form.get('username', 'root') }}" placeholder="Ex.: admin, root" required>
+    </label>
+    <label class="full">Marca
+      <input name="brand" maxlength="100" value="{{ item.brand if item else request.form.get('brand', '') }}" placeholder="Ex.: Cisco, Huawei, MikroTik" required>
+    </label>
+    <label class="full">Senha SSH
+      <input type="password" name="password" maxlength="4096" autocomplete="new-password" {% if not item %}required{% endif %}>
+      <span class="hint">{% if item %}Deixe em branco para manter a senha atual.{% else %}A senha será criptografada com AES-256-GCM antes de entrar no SQLite.{% endif %}</span>
+    </label>
+    <div class="form-actions full">
+      <a class="button ghost" href="{{ url_for('index') }}">Cancelar</a>
+      <button class="button primary" type="submit">{% if item %}Salvar alterações{% else %}Cadastrar{% endif %}</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,16 @@
+.venv/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.pyc
+.env
+*.db
+*.db-shm
+*.db-wal
+*.key
+auth.json
+known_hosts
+*.backup-*
+*.bak
