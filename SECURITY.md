@@ -6,7 +6,9 @@
 - A chave AES fica separada do SQLite; ambos usam permissão `0600` e o diretório usa `0700`.
 - A senha administrativa é armazenada apenas como hash `scrypt`.
 - A interface e a listagem CLI nunca exibem senhas.
-- O conector SSH recupera a senha somente em memória e exige uma chave de host previamente validada.
+- O conector SSH recupera a senha somente em memória e usa TOFU: aceita e fixa a chave no primeiro acesso, bloqueando alterações posteriores.
+
+No primeiro acesso, TOFU não protege contra interceptação ativa. Em ambientes de maior risco, use uma autoridade de certificados SSH ou outro mecanismo central de confiança.
 
 ## Limites
 

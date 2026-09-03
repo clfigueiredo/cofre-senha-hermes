@@ -14,7 +14,7 @@ from waitress import serve
 
 from .app import create_app
 from .auth import create_admin
-from .connector import fingerprint_host, run_command, trust_host
+from .connector import run_command
 from .storage import Registry
 
 
@@ -35,15 +35,6 @@ def main() -> int:
     subparsers.add_parser("list", help="Listar equipamentos sem revelar senhas")
     backup_parser = subparsers.add_parser("backup", help="Criar backup SQLite consistente")
     backup_parser.add_argument("--output", required=True, type=Path, help="Novo diretório de backup")
-    fingerprint_parser = subparsers.add_parser(
-        "fingerprint", help="Consultar a chave SSH apresentada pelo equipamento"
-    )
-    fingerprint_parser.add_argument("target", help="Nome ou UUID exato no inventário")
-    trust_parser = subparsers.add_parser(
-        "trust-host-key", help="Confiar numa chave SSH após validar o fingerprint"
-    )
-    trust_parser.add_argument("target", help="Nome ou UUID exato no inventário")
-    trust_parser.add_argument("--fingerprint", required=True, help="Fingerprint SHA256 esperado")
     run_parser = subparsers.add_parser(
         "run", help="Executar comando SSH usando a credencial sem revelá-la"
     )
@@ -80,15 +71,6 @@ def main() -> int:
                 shutil.copy2(source, output / filename)
                 os.chmod(output / filename, 0o600)
         print(f"Backup consistente criado em {output}")
-        return 0
-    if args.action == "fingerprint":
-        item = registry.resolve(args.target)
-        print(fingerprint_host(item))
-        return 0
-    if args.action == "trust-host-key":
-        item = registry.resolve(args.target)
-        trust_host(item, directory / "known_hosts", args.fingerprint)
-        print(f"Chave SSH registrada para {item.name}.")
         return 0
     if args.action == "run":
         item = registry.resolve(args.target)
