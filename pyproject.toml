@@ -1,6 +1,6 @@
 [project]
 name = "cofre-senhas-hermes"
-version = "1.0.0"
+version = "1.1.0"
 description = "Cofre local de equipamentos para operações NOC com Hermes"
 readme = "README.md"
 license = "MIT"

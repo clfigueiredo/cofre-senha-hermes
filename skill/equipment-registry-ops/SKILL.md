@@ -1,7 +1,7 @@
 ---
 name: equipment-registry-ops
 description: Resolve equipment through the encrypted local inventory.
-version: 1.0.0
+version: 1.1.0
 author: Apolo, Hermes Agent
 license: MIT
 platforms: [linux]
@@ -25,7 +25,7 @@ Use this skill before every infrastructure equipment access. The inventory is au
 
 - `equipment-registry` must be installed and available in `PATH`.
 - The target must be uniquely registered through the authenticated web interface.
-- The SSH host-key fingerprint must be validated through an independent trusted source before first access.
+- The connector uses trust on first use (TOFU): it pins the key presented on the first connection and rejects later key changes.
 
 ## Procedure
 
@@ -33,11 +33,10 @@ Use this skill before every infrastructure equipment access. The inventory is au
 2. Use `terminal(command="equipment-registry list")` to resolve exactly one target. This command returns metadata and never a password.
 3. If the target is absent, ambiguous, or incomplete, stop and ask the user to correct the inventory.
 4. Load the operational skill matching the registered platform or brand.
-5. On first access, use `terminal(command="equipment-registry fingerprint '<exact-name>'")`. Show only the host-key fingerprint and ask the user to validate it against a trusted source.
-6. After validation, use `terminal(command="equipment-registry trust-host-key '<exact-name>' --fingerprint '<SHA256 fingerprint>'")`. A mismatch must stop the connection.
-7. Collect identity and read-only state with `terminal(command="equipment-registry run '<exact-name>' --command '<read-only command>'")`.
-8. Before a change, capture baseline and backup, preserve management access, define rollback, and obtain confirmation when the action is destructive, irreversible, broadly disruptive, or reduces a security boundary.
-9. Apply the smallest effective change through the same connector and verify the exact target in a new command/session.
+5. Collect identity and read-only state with `terminal(command="equipment-registry run '<exact-name>' --command '<read-only command>'")`. On first use, the connector automatically stores the presented host key without prompting the user.
+6. If a previously pinned host key changes, stop and investigate; never overwrite it automatically.
+7. Before a change, capture baseline and backup, preserve management access, define rollback, and obtain confirmation when the action is destructive, irreversible, broadly disruptive, or reduces a security boundary.
+8. Apply the smallest effective change through the same connector and verify the exact target in a new command/session.
 
 ## Secret Handling
 
@@ -57,13 +56,13 @@ HTTP is acceptable only when the owner explicitly accepts the risk on a trusted 
 ## Pitfalls
 
 - AES encryption at rest does not protect against an attacker who obtains both the database and key.
-- An unknown or changed SSH host key is not a routine warning; stop and investigate.
+- A first-use SSH key is accepted automatically, so the first connection is not protected against interception. A later key change must stop the connection and be investigated.
 - The connector executes the supplied remote command. The loaded platform skill and user authorization determine whether that command is safe.
 - A newly installed skill and SOUL policy take effect in a new Hermes session.
 
 ## Verification
 
 - `terminal(command="equipment-registry list")` returns metadata including username and no password field.
-- The target's SSH fingerprint is trusted only after exact SHA256 comparison.
-- A connection fails closed when `known_hosts` has no matching key.
+- The first connection creates a `known_hosts` entry automatically.
+- Later connections fail closed when the pinned host key no longer matches.
 - The user's report contains no password or secret-bearing command output.

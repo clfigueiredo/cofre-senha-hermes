@@ -7,7 +7,7 @@ Inventário local de equipamentos para o Hermes Agent, com interface web, SQLite
 - Cadastro de nome, IP, porta, usuário SSH, marca e senha.
 - AES-256-GCM com chave separada do banco.
 - Login administrativo com hash `scrypt`, CSRF, rate limit e cabeçalhos de segurança.
-- Conector SSH com validação obrigatória da chave do host.
+- Conector SSH com TOFU: registro automático no primeiro acesso e bloqueio de mudanças posteriores.
 - Skill `equipment-registry-ops` e política obrigatória para o `SOUL.md`.
 - Instalador idempotente para Linux e testes automatizados.
 
@@ -96,19 +96,7 @@ Listar metadados, sem senha:
 equipment-registry list
 ```
 
-Consultar a chave SSH apresentada pelo equipamento:
-
-```bash
-equipment-registry fingerprint 'SW-CORE-01'
-```
-
-Após validar o fingerprint SHA256 por fonte independente:
-
-```bash
-equipment-registry trust-host-key 'SW-CORE-01' --fingerprint 'SHA256:VALOR_VALIDADO'
-```
-
-Executar uma consulta pelo conector interno:
+Executar uma consulta pelo conector interno. No primeiro uso, a chave SSH apresentada é registrada automaticamente; nos acessos seguintes, qualquer mudança é recusada:
 
 ```bash
 equipment-registry run 'SW-CORE-01' --command 'show version'
@@ -124,7 +112,7 @@ Por padrão, ficam em `~/.local/share/equipment-registry/`:
 - `encryption.key` — chave AES-256.
 - `session.key` — assinatura das sessões.
 - `auth.json` — hash administrativo.
-- `known_hosts` — chaves SSH previamente validadas.
+- `known_hosts` — chaves SSH fixadas automaticamente no primeiro acesso.
 
 O diretório usa `0700`; os arquivos sensíveis usam `0600`. Faça backup criptografado de `equipment.db` e `encryption.key` em conjunto. Nunca publique esses arquivos.
 

@@ -163,7 +163,7 @@ def main() -> int:
     install_skill(root, hermes_home)
     install_policy(hermes_home)
     manifest.write_text(
-        json.dumps({"version": "1.0.0", "data_dir": str(data_dir.resolve())}, indent=2) + "\n",
+        json.dumps({"version": "1.1.0", "data_dir": str(data_dir.resolve())}, indent=2) + "\n",
         encoding="utf-8",
     )
     os.chmod(manifest, 0o600)
