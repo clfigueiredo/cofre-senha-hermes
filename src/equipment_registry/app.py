@@ -23,7 +23,13 @@ from flask import (
 )
 
 from .auth import create_admin, verify_admin
-from .storage import EquipmentInput, NotFoundError, Registry, ValidationError
+from .storage import (
+    EquipmentInput,
+    MonitorTargetInput,
+    NotFoundError,
+    Registry,
+    ValidationError,
+)
 
 F = TypeVar("F", bound=Callable[..., Any])
 _LOGIN_ATTEMPTS: dict[str, list[float]] = defaultdict(list)
@@ -179,7 +185,32 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
     @app.get("/")
     @login_required
     def index():
-        return render_template("index.html", equipment=registry.list_equipment())
+        return render_template(
+            "index.html",
+            equipment=registry.list_equipment(),
+            monitor_targets=registry.list_monitor_targets(),
+        )
+
+    @app.route("/monitor-target/new", methods=["GET", "POST"])
+    @login_required
+    def monitor_target_new():
+        if request.method == "POST":
+            try:
+                registry.create_monitor_target(
+                    MonitorTargetInput(
+                        name=request.form.get("name", ""),
+                        endpoint=request.form.get("endpoint", ""),
+                        protocol=request.form.get("protocol", ""),
+                        port=int(request.form.get("port", "0")),
+                        brand=request.form.get("brand", ""),
+                    )
+                )
+            except (ValidationError, ValueError) as exc:
+                flash(str(exc), "error")
+            else:
+                flash("Alvo de monitoramento cadastrado.", "success")
+                return redirect(url_for("index"))
+        return render_template("monitor_target_form.html")
 
     @app.route("/equipment/new", methods=["GET", "POST"])
     @login_required
@@ -192,7 +223,10 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
             else:
                 flash("Equipamento cadastrado.", "success")
                 return redirect(url_for("index"))
-        return render_template("equipment_form.html", item=None)
+        access_type = request.form.get("access_type", request.args.get("access_type", "ssh"))
+        if access_type not in {"ssh", "offline"}:
+            abort(400, "Tipo de acesso inválido.")
+        return render_template("equipment_form.html", item=None, access_type=access_type)
 
     @app.route("/equipment/<equipment_id>/edit", methods=["GET", "POST"])
     @login_required
@@ -207,7 +241,7 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
             flash(str(exc), "error")
         except NotFoundError:
             abort(404)
-        return render_template("equipment_form.html", item=item)
+        return render_template("equipment_form.html", item=item, access_type=item.access_type)
 
     @app.route("/equipment/<equipment_id>/delete", methods=["GET", "POST"])
     @login_required
@@ -226,16 +260,27 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
         return render_template("equipment_delete.html", item=item)
 
     def _form_input(*, require_password: bool) -> EquipmentInput:
+        access_type = request.form.get("access_type", "ssh")
         password = request.form.get("password", "")
-        if not require_password and not password:
+        if (not require_password or access_type == "offline") and not password:
             password = None
+        relay_host = request.form.get("relay_host", "").strip() or None
+        relay_port_value = request.form.get("relay_port", "").strip()
         return EquipmentInput(
             name=request.form.get("name", ""),
-            ip=request.form.get("ip", ""),
-            ssh_port=int(request.form.get("ssh_port", "0")),
+            ip=request.form.get("ip", "") or None,
+            ssh_port=int(request.form["ssh_port"]) if request.form.get("ssh_port") else None,
             password=password,
             brand=request.form.get("brand", ""),
             username=request.form.get("username", ""),
+            relay_host=relay_host,
+            relay_port=int(relay_port_value) if relay_port_value else None,
+            sftp_root=request.form.get("sftp_root", "").strip() or None,
+            access_type=access_type,
+            client=request.form.get("client"),
+            parent_host=request.form.get("parent_host"),
+            console_type=request.form.get("console_type"),
+            network_state=request.form.get("network_state"),
         )
 
     return app

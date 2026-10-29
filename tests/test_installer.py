@@ -27,6 +27,16 @@ def test_policy_install_is_idempotent_and_creates_backup(tmp_path: Path) -> None
     assert list(hermes_home.glob("SOUL.md.backup-*"))
 
 
+def test_distributed_skill_requires_inventory_resolution_for_offline_console() -> None:
+    skill = (
+        Path(__file__).parents[1] / "skill" / "equipment-registry-ops" / "SKILL.md"
+    ).read_text(encoding="utf-8")
+
+    assert "console local/offline" in skill
+    assert "não autoriza SSH, SFTP, relay ou conexão de rede" in skill
+    assert "não é um alvo autorizado implicitamente" in skill
+
+
 def test_private_remote_host_validation_logic() -> None:
     import ipaddress
 

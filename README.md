@@ -104,6 +104,72 @@ equipment-registry run 'SW-CORE-01' --command 'show version'
 
 A senha é descriptografada somente dentro do processo do conector. O comando remoto e sua saída ainda podem ser sensíveis; o Hermes deve carregar a skill da plataforma, limitar o escopo e redigir segredos antes de responder.
 
+Para equipamentos com uma raiz SFTP explícita configurada, listar apenas metadados:
+
+```bash
+equipment-registry sftp-list 'Supply-FTP' --path ''
+```
+
+Baixar um arquivo para um caminho local novo, sem sobrescrita, retornando tamanho e SHA-256:
+
+```bash
+equipment-registry sftp-download 'Supply-FTP' 'supply.war' --output '/caminho/novo/supply.war'
+```
+
+O destino é criado com permissão `0600`, `O_EXCL` e `O_NOFOLLOW`; arquivos existentes e symlinks são recusados, e um parcial é removido se a transferência falhar. A primeira versão SFTP oferece somente listagem e download: não há upload, remoção, rename, `mkdir`, `chmod` ou execução remota.
+
+## Console local / offline
+
+Na interface autenticada, selecione **+ Console local / offline** (também disponível
+no formulário de novo equipamento). Preencha nome, marca, cliente, host pai e tipo
+de console. O único estado de rede permitido é **Rede desconectada**.
+
+Exemplo de preenchimento, **não um cadastro automático**: nome `n8n-restore-offline`,
+cliente `GOITS`, host pai `DESKTOP-5ERNE8J`, tipo de console `hyper-v`; informe a marca
+adequada no formulário. Não informe IP, porta, usuário ou senha. Relay e SFTP também
+não se aplicam. O backend recusa esses campos se enviados em um POST manipulado.
+
+- O registro apenas documenta a VM. Não verifica/desconecta a rede, não abre um console,
+  não liga a VM e não autoriza conexão ao host pai. Mantenha a VM isolada no hipervisor.
+- `equipment-registry list` inclui `access_type` (`ssh` ou `offline`). Para offline,
+  `ip`, `ssh_port` e `username` são `null`; os campos `client`, `parent_host`,
+  `console_type` e `network_state` descrevem o cadastro, sem credenciais.
+- `run`, `sftp-list` e `sftp-download` recusam offline **antes de obter/descriptografar
+  senha, criar destino de download, consultar TOFU ou tentar conexão**.
+- O tipo de acesso não pode ser convertido durante a edição. Um novo tipo exige
+  cadastro distinto e autorização própria; não existe promoção implícita para SSH.
+- Monitoramento continua separado em `monitor-list`. Offline não concede permissão
+  para sondas de rede e não aparece nessa listagem.
+
+### Migração e ativação de uma atualização local
+
+A inicialização cria a tabela adicional `offline_equipment` e triggers de unicidade
+entre SSH e offline, sem reescrever a tabela SSH, seus ciphertexts ou os alvos de
+monitoramento. A tabela offline não tem colunas de endpoint ou credencial. A migração
+é idempotente; não exclua tabelas para voltar a uma versão anterior (versões antigas
+não exibem os registros offline).
+
+Antes da ativação, o operador deve providenciar o backup consistente descrito acima.
+Se a aplicação roda a partir do código-fonte/instalação editável, precisa reiniciar o
+processo web para carregar o novo backend. **O instalador padrão usa uma cópia do
+pacote (`uv tool install`), não uma instalação editável**: nesse caso, atualize também
+o pacote, em janela autorizada, antes de reiniciar. Não basta recarregar o navegador.
+
+Conforme `scripts/install.py`, o serviço padrão é `cofre-senhas-hermes.service` em
+`~/.config/systemd/user/cofre-senhas-hermes.service`, executando
+`~/.local/bin/equipment-registry`. Isso documenta o instalador, não confirma o serviço
+real da máquina. Para essa instalação padrão, os comandos de ativação são:
+
+```bash
+# Somente após autorização operacional, backup e confirmação da instalação alvo:
+uv tool install --force .
+systemctl --user restart cofre-senhas-hermes.service
+```
+
+Não é necessário executar `scripts/install.py` para esta atualização; ele também
+altera skill/política. Nenhum restart, instalação global, mudança de política ou
+cadastro em banco real faz parte dos testes locais.
+
 ## Dados persistentes
 
 Por padrão, ficam em `~/.local/share/equipment-registry/`:
@@ -132,6 +198,16 @@ uv run bandit -q -r src scripts
 uv run pip-audit
 ```
 
+O teste opcional de navegador `tests/browser_offline.py` requer Playwright/Chromium
+(instalados separadamente do ambiente de produção). Ele inicia um servidor apenas em
+loopback com porta efêmera, cria dados temporários pela interface e valida cadastro,
+edição/exclusão e layout em 375, 768 e 1440 px. `QA_CHROMIUM` permite indicar um binário
+já instalado. O 404 do favicon preexistente é isolado no harness, não na aplicação.
+
+```bash
+python tests/browser_offline.py
+```
+
 ## Desinstalação
 
 Por padrão, remove serviço, comando, skill e política, mas preserva o cofre:
@@ -151,6 +227,8 @@ Remover `encryption.key` torna irrecuperável qualquer cópia isolada do banco.
 ## Limitações
 
 A criptografia em repouso não protege contra alguém que obtenha simultaneamente o banco e a chave. O projeto é voltado a inventários locais e laboratórios; ambientes de alta criticidade devem considerar um gerenciador de segredos dedicado, segregação de privilégios, HTTPS/VPN e auditoria centralizada.
+
+SFTP v3 não oferece uma defesa portátil equivalente a `openat(..., O_NOFOLLOW)` no servidor. O conector valida raiz, componentes, `realpath`, tipo antes/depois de abrir, tamanho e bytes recebidos, mas uma conta remota hostil ainda controla os dados e pode explorar janelas TOCTOU. Use uma conta SFTP somente leitura e preferencialmente chrootada/restrita.
 
 ## Licença
 

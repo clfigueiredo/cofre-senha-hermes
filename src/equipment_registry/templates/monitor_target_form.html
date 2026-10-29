@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Cadastrar alvo de monitoramento · NOC Vault{% endblock %}
+{% block content %}
+<section class="form-card">
+  <a class="back" href="{{ url_for('index') }}">← Voltar ao inventário</a>
+  <div class="eyebrow">MONITORAMENTO SEM CREDENCIAL</div>
+  <h1>Cadastrar alvo de monitoramento</h1>
+  <p class="muted">Use somente para destinos autorizados para checagens de leitura. Não armazena usuário, senha ou comunidade SNMP.</p>
+  <form method="post" class="form-grid">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label class="full">Nome do alvo
+      <input name="name" maxlength="100" value="{{ request.form.get('name', '') }}" placeholder="Ex.: Pfsense-DRN-WAN1" required autofocus>
+    </label>
+    <label>Endereço IP ou DNS
+      <input name="endpoint" value="{{ request.form.get('endpoint', '') }}" placeholder="Ex.: dornas1.dyndns.org" required>
+    </label>
+    <label>Protocolo autorizado
+      <select name="protocol" required>
+        <option value="icmp" {% if request.form.get('protocol') == 'icmp' %}selected{% endif %}>ICMP</option>
+        <option value="tcp" {% if request.form.get('protocol') == 'tcp' %}selected{% endif %}>TCP</option>
+        <option value="snmp" {% if request.form.get('protocol', 'snmp') == 'snmp' %}selected{% endif %}>SNMP/UDP</option>
+      </select>
+    </label>
+    <label>Porta autorizada
+      <input type="number" name="port" min="1" max="65535" value="{{ request.form.get('port', '161') }}" required>
+    </label>
+    <label>Marca
+      <input name="brand" maxlength="100" value="{{ request.form.get('brand', '') }}" placeholder="Ex.: pfSense" required>
+    </label>
+    <div class="form-actions full">
+      <a class="button ghost" href="{{ url_for('index') }}">Cancelar</a>
+      <button class="button primary" type="submit">Cadastrar alvo</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

@@ -5,13 +5,40 @@
   <a class="back" href="{{ url_for('index') }}">← Voltar ao inventário</a>
   <div class="eyebrow">{% if item %}ATUALIZAR CADASTRO{% else %}NOVO CADASTRO{% endif %}</div>
   <h1>{% if item %}Editar equipamento{% else %}Cadastrar equipamento{% endif %}</h1>
+  {% if not item %}
+  <nav aria-label="Tipo de acesso">
+    <a class="button ghost" href="{{ url_for('equipment_new') }}">SSH</a>
+    <a class="button ghost" href="{{ url_for('equipment_new', access_type='offline') }}">Console local / offline</a>
+  </nav>
+  {% endif %}
+  <p class="muted">{% if access_type == 'offline' %}Console local / offline — sem acesso de rede. Este cadastro não conecta nem altera a VM.{% else %}Acesso SSH{% endif %}</p>
   <form method="post" class="form-grid">
+    <input type="hidden" name="access_type" value="{{ access_type }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label class="full">Nome do equipamento
       <input name="name" maxlength="100" value="{{ item.name if item else request.form.get('name', '') }}" placeholder="Ex.: SW-CORE-01" required autofocus>
     </label>
-    <label>Endereço IP
-      <input name="ip" value="{{ item.ip if item else request.form.get('ip', '') }}" placeholder="192.0.2.10" required>
+    {% if access_type == 'offline' %}
+    <label>Cliente
+      <input name="client" maxlength="100" value="{{ request.form.get('client', item.client if item else '') }}" required>
+    </label>
+    <label>Host pai
+      <input name="parent_host" maxlength="100" value="{{ request.form.get('parent_host', item.parent_host if item else '') }}" required>
+      <span class="hint">Nome de referência; não concede acesso ao host pai.</span>
+    </label>
+    <label>Tipo de console
+      <input name="console_type" maxlength="100" value="{{ request.form.get('console_type', item.console_type if item else '') }}" placeholder="Ex.: hyper-v, console local" required>
+    </label>
+    <label>Estado da rede
+      <select name="network_state" required>
+        <option value="disconnected">Rede desconectada</option>
+      </select>
+      <span class="hint">Registro declarativo, não verifica nem desconecta a interface da VM.</span>
+    </label>
+    {% else %}
+    <label>Endereço IP ou DDNS/FQDN
+      <input name="ip" value="{{ item.ip if item else request.form.get('ip', '') }}" placeholder="192.0.2.10 ou vll.dyndns.info" required>
+      <span class="hint">Informe apenas o endereço, sem protocolo ou porta. Hostnames DDNS são normalizados para minúsculas.</span>
     </label>
     <label>Porta SSH
       <input type="number" name="ssh_port" min="1" max="65535" value="{{ item.ssh_port if item else request.form.get('ssh_port', '22') }}" required>
@@ -19,13 +46,27 @@
     <label class="full">Usuário SSH
       <input name="username" maxlength="64" value="{{ item.username if item else request.form.get('username', 'root') }}" placeholder="Ex.: admin, root" required>
     </label>
+    {% endif %}
     <label class="full">Marca
       <input name="brand" maxlength="100" value="{{ item.brand if item else request.form.get('brand', '') }}" placeholder="Ex.: Cisco, Huawei, MikroTik" required>
+    </label>
+    {% if access_type != 'offline' %}
+    <label>Relay SSH local (opcional)
+      <input name="relay_host" value="{{ item.relay_host if item and item.relay_host else request.form.get('relay_host', '') }}" placeholder="127.0.0.1">
+    </label>
+    <label>Porta do relay SSH
+      <input type="number" name="relay_port" min="1" max="65535" value="{{ item.relay_port if item and item.relay_port else request.form.get('relay_port', '') }}" placeholder="Ex.: 22211">
+      <span class="hint">Opcional. Aceita somente 127.0.0.1 ou ::1; preencha host e porta juntos.</span>
+    </label>
+    <label class="full">Raiz SFTP (opcional)
+      <input name="sftp_root" maxlength="1024" value="{{ item.sftp_root if item and item.sftp_root else request.form.get('sftp_root', '') }}" placeholder="Ex.: / ou /srv/releases">
+      <span class="hint">Deixe em branco para desabilitar SFTP. Somente listagem e download dentro desta raiz serão permitidos.</span>
     </label>
     <label class="full">Senha SSH
       <input type="password" name="password" maxlength="4096" autocomplete="new-password" {% if not item %}required{% endif %}>
       <span class="hint">{% if item %}Deixe em branco para manter a senha atual.{% else %}A senha será criptografada com AES-256-GCM antes de entrar no SQLite.{% endif %}</span>
     </label>
+    {% endif %}
     <div class="form-actions full">
       <a class="button ghost" href="{{ url_for('index') }}">Cancelar</a>
       <button class="button primary" type="submit">{% if item %}Salvar alterações{% else %}Cadastrar{% endif %}</button>

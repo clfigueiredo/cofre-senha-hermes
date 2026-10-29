@@ -7,7 +7,13 @@ from pathlib import Path
 
 import pytest
 
-from equipment_registry.storage import EquipmentInput, Registry, RegistryError, ValidationError
+from equipment_registry.storage import (
+    EquipmentInput,
+    MonitorTargetInput,
+    Registry,
+    RegistryError,
+    ValidationError,
+)
 
 
 def make_registry(tmp_path: Path) -> Registry:
@@ -51,6 +57,82 @@ def test_create_encrypts_password_and_list_never_returns_it(tmp_path: Path) -> N
     assert registry.get_password(equipment.id) == "senha-de-teste"
 
 
+def test_create_equipment_accepts_ddns_hostname(tmp_path: Path) -> None:
+    registry = make_registry(tmp_path)
+    registry.initialize()
+
+    equipment = registry.create(
+        EquipmentInput(
+            name="Pfsense-VLL",
+            ip="VLL.DYNDNS.INFO.",
+            ssh_port=2222,
+            password="test",
+            brand="pfSense",
+            username="admin",
+        )
+    )
+
+    assert equipment.ip == "vll.dyndns.info"
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "192.0.2.1.",
+        "2001:db8::1.",
+        "host.example.com...",
+        "host..example.com",
+        f"{'a' * 64}.example.com",
+        "fe80::1%eth0",
+        "fe80::1%evil\nkey",
+        "host.example.com\ninjected",
+        "\nexample.com",
+        "example.com\r",
+        "\texample.com",
+    ],
+)
+def test_create_equipment_rejects_malformed_dns_or_ip_endpoint(
+    tmp_path: Path, endpoint: str
+) -> None:
+    registry = make_registry(tmp_path)
+    registry.initialize()
+
+    with pytest.raises(ValidationError, match="IPv4, IPv6 ou nome DNS"):
+        registry.create(EquipmentInput("Pfsense-VLL", endpoint, 22, "test", "pfSense"))
+
+
+def test_create_equipment_accepts_punycode_fqdn(tmp_path: Path) -> None:
+    registry = make_registry(tmp_path)
+    registry.initialize()
+
+    equipment = registry.create(
+        EquipmentInput("Pfsense-IDN", "router.xn--p1ai", 22, "test", "pfSense")
+    )
+
+    assert equipment.ip == "router.xn--p1ai"
+
+
+def test_create_monitor_target_accepts_dns_without_credentials(tmp_path: Path) -> None:
+    registry = make_registry(tmp_path)
+    registry.initialize()
+
+    target = registry.create_monitor_target(
+        MonitorTargetInput(
+            name="Pfsense-DRN-WAN1",
+            endpoint="dornas1.dyndns.org",
+            protocol="snmp",
+            port=161,
+            brand="pfSense",
+        )
+    )
+
+    assert target.name == "Pfsense-DRN-WAN1"
+    assert target.endpoint == "dornas1.dyndns.org"
+    assert target.protocol == "snmp"
+    assert target.port == 161
+    assert registry.list_monitor_targets() == [target]
+
+
 def test_update_can_preserve_or_replace_password(tmp_path: Path) -> None:
     registry = make_registry(tmp_path)
     registry.initialize()
@@ -61,6 +143,42 @@ def test_update_can_preserve_or_replace_password(tmp_path: Path) -> None:
 
     registry.update(equipment.id, EquipmentInput("Edge 2", "2001:db8::1", 22, "new", "Cisco"))
     assert registry.get_password(equipment.id) == "new"
+
+
+def test_equipment_can_use_a_loopback_ssh_relay_without_replacing_its_identity(tmp_path: Path) -> None:
+    registry = make_registry(tmp_path)
+    registry.initialize()
+
+    equipment = registry.create(
+        EquipmentInput(
+            "Proxmox-Glagio",
+            "10.10.1.211",
+            22,
+            "test",
+            "Proxmox",
+            relay_host="127.0.0.1",
+            relay_port=22211,
+        )
+    )
+
+    assert equipment.ip == "10.10.1.211"
+    assert equipment.ssh_port == 22
+    assert equipment.relay_host == "127.0.0.1"
+    assert equipment.relay_port == 22211
+
+
+def test_equipment_rejects_non_loopback_or_incomplete_ssh_relay(tmp_path: Path) -> None:
+    registry = make_registry(tmp_path)
+    registry.initialize()
+
+    with pytest.raises(ValidationError, match="loopback"):
+        registry.create(
+            EquipmentInput(
+                "R1", "192.0.2.1", 22, "test", "Cisco", relay_host="10.0.0.10", relay_port=22211
+            )
+        )
+    with pytest.raises(ValidationError, match="juntos"):
+        registry.create(EquipmentInput("R2", "192.0.2.2", 22, "test", "Cisco", relay_host="127.0.0.1"))
 
 
 def test_validation_rejects_bad_ip_port_empty_password_and_duplicate_name(tmp_path: Path) -> None:
@@ -118,9 +236,59 @@ def test_existing_database_is_migrated_with_default_ssh_username(tmp_path: Path)
     with sqlite3.connect(database) as connection:
         columns = {row[1] for row in connection.execute("PRAGMA table_info(equipment)")}
     assert "username" in columns
+    assert "sftp_root" in columns
     registry.create(EquipmentInput("R1", "192.0.2.1", 22, "test", "Cisco"))
     with pytest.raises(ValidationError, match="Já existe"):
         registry.create(EquipmentInput("r1", "192.0.2.2", 22, "test", "Cisco"))
+
+
+def test_equipment_can_enable_sftp_with_an_absolute_posix_root(tmp_path: Path) -> None:
+    registry = make_registry(tmp_path)
+    registry.initialize()
+
+    equipment = registry.create(
+        EquipmentInput(
+            "Supply-FTP",
+            "admin.supplyerp.com.br",
+            2222,
+            "test",
+            "SFTP",
+            username="fortacao",
+            sftp_root="/",
+        )
+    )
+
+    assert equipment.sftp_root == "/"
+    assert registry.list_equipment()[0].sftp_root == "/"
+
+
+@pytest.mark.parametrize(
+    "sftp_root",
+    [
+        "relative/path",
+        "/srv/../secret",
+        "/srv/./files",
+        "/srv\\files",
+        "/srv/files\nother",
+        "/srv//files",
+    ],
+)
+def test_equipment_rejects_unsafe_sftp_root(tmp_path: Path, sftp_root: str) -> None:
+    registry = make_registry(tmp_path)
+    registry.initialize()
+
+    with pytest.raises(ValidationError, match="raiz SFTP"):
+        registry.create(
+            EquipmentInput(
+                "Supply-FTP",
+                "admin.supplyerp.com.br",
+                2222,
+                "test",
+                "SFTP",
+                username="fortacao",
+                sftp_root=sftp_root,
+            )
+        )
 
 
 def test_migration_refuses_existing_case_insensitive_duplicates(tmp_path: Path) -> None:

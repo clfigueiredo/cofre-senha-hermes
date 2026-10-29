@@ -7,7 +7,11 @@
     <h1>Equipamentos</h1>
     <p class="muted">{{ equipment|length }} equipamento{% if equipment|length != 1 %}s{% endif %} cadastrado{% if equipment|length != 1 %}s{% endif %}.</p>
   </div>
-  <a class="button primary" href="{{ url_for('equipment_new') }}">+ Novo equipamento</a>
+  <div>
+    <a class="button ghost" href="{{ url_for('monitor_target_new') }}">+ Alvo de monitoramento</a>
+    <a class="button primary" href="{{ url_for('equipment_new') }}">+ Novo equipamento</a>
+    <a class="button ghost" href="{{ url_for('equipment_new', access_type='offline') }}">+ Console local / offline</a>
+  </div>
 </section>
 
 {% if equipment %}
@@ -17,11 +21,14 @@
     <tbody>
     {% for item in equipment %}
       <tr>
-        <td><strong>{{ item.name }}</strong></td>
-        <td><code>{{ item.ip }}</code></td>
-        <td><code>{{ item.username }}</code></td>
-        <td><code>{{ item.ssh_port }}</code></td>
-        <td><span class="badge">{{ item.brand }}</span></td>
+        <td><strong>{{ item.name }}</strong>{% if item.access_type == 'offline' %}
+          <div><span class="badge">Console local / offline</span> <span class="badge">Rede desconectada</span></div>
+          <div>Cliente: {{ item.client }} · Host pai: {{ item.parent_host }} · Console: {{ item.console_type }}</div>
+        {% endif %}</td>
+        <td><code>{{ item.ip or "—" }}</code></td>
+        <td><code>{{ item.username or "—" }}</code></td>
+        <td><code>{{ item.ssh_port or "—" }}</code></td>
+        <td><span class="badge">{{ item.brand }}</span>{% if item.sftp_root %} <span class="badge">SFTP habilitado</span>{% endif %}</td>
         <td class="actions"><a href="{{ url_for('equipment_edit', equipment_id=item.id) }}">Editar</a><span class="separator">·</span><a class="danger-link" href="{{ url_for('equipment_delete', equipment_id=item.id) }}">Excluir</a></td>
       </tr>
     {% endfor %}
@@ -34,6 +41,36 @@
   <h2>Nenhum equipamento cadastrado</h2>
   <p class="muted">Cadastre o primeiro equipamento para iniciar seu inventário.</p>
   <a class="button primary" href="{{ url_for('equipment_new') }}">Cadastrar equipamento</a>
+</section>
+{% endif %}
+
+<section class="page-head">
+  <div>
+    <div class="eyebrow">ALVOS AUTORIZADOS</div>
+    <h2>Monitoramento sem credencial</h2>
+    <p class="muted">Destinos autorizados para testes de leitura, sem SSH ou segredo armazenado.</p>
+  </div>
+</section>
+{% if monitor_targets %}
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Nome</th><th>Endpoint</th><th>Protocolo</th><th>Porta</th><th>Marca</th></tr></thead>
+    <tbody>
+    {% for item in monitor_targets %}
+      <tr>
+        <td><strong>{{ item.name }}</strong></td>
+        <td><code>{{ item.endpoint }}</code></td>
+        <td><span class="badge">{{ item.protocol|upper }}</span></td>
+        <td><code>{{ item.port }}</code></td>
+        <td><span class="badge">{{ item.brand }}</span></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<section class="empty">
+  <p class="muted">Nenhum alvo de monitoramento sem credencial cadastrado.</p>
 </section>
 {% endif %}
 {% endblock %}

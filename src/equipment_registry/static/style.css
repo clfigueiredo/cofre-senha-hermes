@@ -51,8 +51,8 @@ code { color: #d0e4df; background: #07110f; padding: 4px 7px; border: 1px solid 
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 32px; }
 .full { grid-column: 1/-1; }
 label { display: grid; gap: 8px; color: #dbe8e4; font-weight: 680; }
-input { width: 100%; border: 1px solid var(--line); border-radius: 10px; background: #07110f; color: var(--text); padding: 12px 13px; font: inherit; outline: none; }
-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,229,157,.13); }
+input, select { width: 100%; border: 1px solid var(--line); border-radius: 10px; background: #07110f; color: var(--text); padding: 12px 13px; font: inherit; outline: none; }
+input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,229,157,.13); }
 .hint { font-size: 12px; font-weight: 450; }
 .form-actions { display: flex; justify-content: flex-end; gap: 12px; padding-top: 8px; }
 .back { display: inline-block; margin-bottom: 30px; color: var(--muted); }
