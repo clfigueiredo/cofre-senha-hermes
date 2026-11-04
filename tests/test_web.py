@@ -72,16 +72,25 @@ def test_first_run_setup_creates_admin_without_storing_plaintext(tmp_path: Path)
     assert second_client.get("/setup").status_code == 404
 
 
-def test_first_run_setup_is_rejected_from_remote_address(tmp_path: Path) -> None:
-    application = create_app(
+def _fresh_app(tmp_path: Path):
+    return create_app(
         {
             "TESTING": True,
             "DATA_DIR": tmp_path,
             "SECRET_KEY": "test-session-key-not-for-production",
         }
     )
-    remote_client = application.test_client()
-    response = remote_client.get("/setup", environ_base={"REMOTE_ADDR": "192.168.1.20"})
+
+
+def test_first_run_setup_is_allowed_from_private_network(tmp_path: Path) -> None:
+    lan_client = _fresh_app(tmp_path).test_client()
+    response = lan_client.get("/setup", environ_base={"REMOTE_ADDR": "192.168.1.20"})
+    assert response.status_code == 200
+
+
+def test_first_run_setup_is_rejected_from_public_address(tmp_path: Path) -> None:
+    public_client = _fresh_app(tmp_path).test_client()
+    response = public_client.get("/setup", environ_base={"REMOTE_ADDR": "8.8.8.8"})
     assert response.status_code == 403
 
 

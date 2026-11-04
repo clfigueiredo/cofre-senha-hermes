@@ -8,14 +8,14 @@ Inventário local de equipamentos para o Hermes Agent, com interface web, SQLite
 - AES-256-GCM com chave separada do banco.
 - Login administrativo com hash `scrypt`, CSRF, rate limit e cabeçalhos de segurança.
 - Conector SSH com TOFU: registro automático no primeiro acesso e bloqueio de mudanças posteriores.
-- Skill `equipment-registry-ops` e política obrigatória para o `SOUL.md`.
+- Skill `equipment-registry-ops`, que orienta o Hermes a consultar o inventário (sem alterar o `SOUL.md`).
 - Instalador idempotente para Linux e testes automatizados.
 
 ## Instalação pelo Hermes
 
 Envie este repositório ao seu Hermes e peça:
 
-> Instale este projeto seguindo o AGENTS.md, sem expor credenciais. Mantenha a interface em localhost, salvo se eu autorizar explicitamente acesso pela rede privada.
+> Instale este projeto seguindo o AGENTS.md, sem expor credenciais.
 
 O Hermes deverá revisar os arquivos e executar:
 
@@ -30,20 +30,19 @@ O instalador:
 3. executa os testes;
 4. instala o comando `equipment-registry`;
 5. inicializa o armazenamento privado;
-6. instala a skill no perfil Hermes ativo;
-7. adiciona ao `SOUL.md` a política obrigatória, preservando backup quando houver mudança.
+6. instala a skill no perfil Hermes ativo.
 
-Abra uma nova sessão do Hermes após instalar para carregar a skill e a política.
+O instalador **não altera** o `SOUL.md` nem outros arquivos de personalidade do Hermes. Abra uma nova sessão do Hermes após instalar para carregar a skill.
 
 ## Primeiro acesso
 
-Inicie apenas em localhost:
+Inicie a interface (por padrão escuta em todas as interfaces, porta 8787):
 
 ```bash
-equipment-registry serve --host 127.0.0.1 --port 8787
+equipment-registry serve
 ```
 
-Abra `http://127.0.0.1:8787/setup` e crie a senha administrativa, ou execute `equipment-registry init` para defini-la de modo interativo. Nunca envie essa senha pelo chat. Uma nova execução de `init` é recusada; `--force` redefine deliberadamente o administrador existente.
+Abra `http://<ip-do-servidor>:8787/setup` de qualquer máquina da rede local e crie a senha administrativa. Depois disso, cadastre os equipamentos pela própria interface. O `/setup` só aceita conexões de localhost ou de IPs privados e some após o primeiro administrador ser criado. Também é possível usar `equipment-registry init` no terminal. Nunca envie essa senha pelo chat.
 
 ## Backup consistente
 
@@ -60,7 +59,8 @@ O diretório de saída deve ser novo. Armazene-o em destino criptografado e prot
 Se o ambiente possuir `systemd --user`:
 
 ```bash
-python3 scripts/install.py --service
+python3 scripts/install.py --service                 # escuta em 0.0.0.0:8787
+python3 scripts/install.py --service --host 127.0.0.1  # só local
 ```
 
 Verifique:
@@ -70,23 +70,16 @@ systemctl --user status cofre-senhas-hermes.service
 curl --fail http://127.0.0.1:8787/health
 ```
 
-## Rede privada
+## Rede e acesso
 
-O padrão seguro é `127.0.0.1`. Para uma LAN privada, inicialize primeiro o administrador, confirme o IP privado correto e restrinja a porta no firewall. Depois, com autorização explícita:
-
-```bash
-python3 scripts/install.py --service --host 192.168.1.10 --port 8787 --insecure-private-lan
-```
-
-Sem serviço:
+O padrão é `0.0.0.0:8787` (todas as interfaces). Para escutar só em um IP ou só localmente:
 
 ```bash
-EQUIPMENT_REGISTRY_ALLOW_REMOTE=1 \
-EQUIPMENT_REGISTRY_ALLOW_INSECURE_HTTP=I_ACCEPT_PRIVATE_LAN_RISK \
 equipment-registry serve --host 192.168.1.10 --port 8787
+equipment-registry serve --host 127.0.0.1
 ```
 
-HTTP sem TLS só deve ser usado quando o responsável aceitar o risco numa rede privada confiável. Nunca publique a porta diretamente na Internet.
+A interface usa HTTP sem TLS. Mantenha-a dentro da rede local ou VPN, restrinja a porta no firewall e nunca a publique diretamente na Internet. Atrás de um proxy HTTPS, defina `EQUIPMENT_REGISTRY_HTTPS=1` para marcar o cookie de sessão como `Secure`.
 
 ## Uso seguro pelo Hermes
 
@@ -134,7 +127,7 @@ uv run pip-audit
 
 ## Desinstalação
 
-Por padrão, remove serviço, comando, skill e política, mas preserva o cofre:
+Por padrão, remove serviço, comando e skill (e o bloco de política de versões antigas no `SOUL.md`, se existir), mas preserva o cofre:
 
 ```bash
 python3 scripts/uninstall.py

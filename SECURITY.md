@@ -14,7 +14,7 @@ No primeiro acesso, TOFU não protege contra interceptação ativa. Em ambientes
 
 Quem obtiver acesso ao sistema operacional com permissão para ler simultaneamente o banco e a chave poderá descriptografar as credenciais. Este projeto não substitui um HSM ou um gerenciador de segredos corporativo.
 
-HTTP não deve ser exposto à Internet. O uso sem TLS deve ficar restrito a uma rede privada confiável e depende de autorização explícita do responsável.
+A interface escuta em todas as interfaces por padrão e usa HTTP sem TLS: mantenha-a restrita à rede local ou VPN (firewall) e nunca a exponha à Internet. O `/setup` inicial só aceita localhost e IPs privados.
 
 ## Arquivos que nunca devem ser publicados
 

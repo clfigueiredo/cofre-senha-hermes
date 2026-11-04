@@ -1,7 +1,7 @@
 ---
 name: equipment-registry-ops
-description: Resolve equipment through the encrypted local inventory.
-version: 1.1.0
+description: Look up equipment and connect over SSH using the encrypted local inventory (Cofre de Senhas).
+version: 1.2.0
 author: Apolo, Hermes Agent
 license: MIT
 platforms: [linux]
@@ -13,56 +13,63 @@ metadata:
 
 # Equipment Registry Operations
 
-Use this skill before every infrastructure equipment access. The inventory is authoritative for target address, SSH port, username, and encrypted password; it does not authorize actions outside the user's stated scope.
+The local inventory (Cofre de Senhas) stores equipment name, IP, SSH port, username, brand and an encrypted password. Use it as the **first place to look** when the user asks you to access a piece of infrastructure, so you get the right address and credentials without asking the user to type passwords in chat.
+
+The inventory is a convenience and a source of truth for credentials. It is not a gate: if the user gives you other instructions, follow the user.
 
 ## When to Use
 
-- Before querying, diagnosing, configuring, or administering equipment.
-- Before loading the operational skill for Cisco, MikroTik, Huawei, Proxmox, Linux, or another platform.
-- Do not use chat history, memory, notes, or prior credentials as a substitute for the inventory.
+- The user asks to query, diagnose, configure or administer a switch, router, server, firewall or similar.
+- The user mentions a device by name and you need its IP, port, username or brand.
+- Before loading a platform-specific skill (Cisco, MikroTik, Huawei, Proxmox, Linux…), to find out which brand the device is.
 
 ## Prerequisites
 
-- `equipment-registry` must be installed and available in `PATH`.
-- The target must be uniquely registered through the authenticated web interface.
-- The connector uses trust on first use (TOFU): it pins the key presented on the first connection and rejects later key changes.
+- `equipment-registry` installed and in `PATH`.
+- Devices are registered by the user through the **web interface** (`http://<server-ip>:8787/`). There is no need to register devices from the command line.
 
 ## Procedure
 
-1. Load this skill before any equipment-specific skill.
-2. Use `terminal(command="equipment-registry list")` to resolve exactly one target. This command returns metadata and never a password.
-3. If the target is absent, ambiguous, or incomplete, stop and ask the user to correct the inventory.
-4. Load the operational skill matching the registered platform or brand.
-5. Collect identity and read-only state with `terminal(command="equipment-registry run '<exact-name>' --command '<read-only command>'")`. On first use, the connector automatically stores the presented host key without prompting the user.
-6. If a previously pinned host key changes, stop and investigate; never overwrite it automatically.
-7. Before a change, capture baseline and backup, preserve management access, define rollback, and obtain confirmation when the action is destructive, irreversible, broadly disruptive, or reduces a security boundary.
-8. Apply the smallest effective change through the same connector and verify the exact target in a new command/session.
+1. List the inventory: `terminal(command="equipment-registry list")`. It returns metadata (name, IP, port, username, brand) and never a password.
+2. Match the device the user mentioned. Matching by name, IP or a clear partial name is fine; if several entries match, ask which one.
+3. Run commands through the connector, which decrypts the password only in memory:
+   `terminal(command="equipment-registry run '<exact-name>' --command '<command>'")`
+4. Load the platform skill that matches the registered brand and continue the task normally.
+
+### If the device is not in the inventory
+
+Do not stop. Choose what fits:
+
+- Suggest the user register it in the web interface (`http://<server-ip>:8787/`), so later sessions find it automatically, **or**
+- Use the access method the user gives you (another skill, a key-based SSH session, a jump host, etc.).
+
+### Changes on equipment
+
+Use normal operational judgement: read the current state first, keep management access, and know how to roll back. For changes that are destructive, disruptive or hard to undo, briefly confirm with the user before applying them.
 
 ## Secret Handling
 
-- Never reveal, repeat, return, log, or persist equipment passwords in chat, memory, reports, environment notes, or visible command arguments.
-- Never call the internal `Registry.get_password()` from an ad-hoc script. The packaged SSH connector is the only approved consumer.
-- Never add the database, AES key, session key, authentication file, `known_hosts`, backups, or decrypted output to Git.
-- Treat remote command output as potentially sensitive; redact secrets before reporting.
+These rules protect the passwords themselves:
 
-## Private-LAN Web Access
+- Never print, repeat or store equipment passwords in chat, memory, reports or visible command arguments. Let the connector use them.
+- Do not call the internal `Registry.get_password()` from ad-hoc scripts; use `equipment-registry run`.
+- Never add `equipment.db`, `encryption.key`, `session.key`, `auth.json`, `known_hosts` or backups to Git or send them anywhere.
+- Command output may contain secrets (for example a `show running-config`); redact them before showing the result.
 
-The safe default is localhost. Bind to a private address only after explicit authorization, administrator initialization, and firewall/subnet review:
+## SSH Host Keys
 
-`terminal(command="EQUIPMENT_REGISTRY_ALLOW_REMOTE=1 EQUIPMENT_REGISTRY_ALLOW_INSECURE_HTTP=I_ACCEPT_PRIVATE_LAN_RISK equipment-registry serve --host <private-ip> --port 8787")`
+The connector trusts the host key on the first connection and pins it (TOFU). If a pinned key changes later, the connection is refused. Tell the user: it may be a reinstalled device or a man-in-the-middle. After the user confirms the change is legitimate, the old entry can be removed from `~/.local/share/equipment-registry/known_hosts` so it gets re-pinned.
 
-HTTP is acceptable only when the owner explicitly accepts the risk on a trusted private network. Never expose this service directly to the Internet.
+## Web Interface
 
-## Pitfalls
+The service listens on all interfaces by default (`0.0.0.0:8787`), so the user can register equipment from any computer on the network:
 
-- AES encryption at rest does not protect against an attacker who obtains both the database and key.
-- A first-use SSH key is accepted automatically, so the first connection is not protected against interception. A later key change must stop the connection and be investigated.
-- The connector executes the supplied remote command. The loaded platform skill and user authorization determine whether that command is safe.
-- A newly installed skill and SOUL policy take effect in a new Hermes session.
+`terminal(command="equipment-registry serve")`
+
+It uses plain HTTP. Keep it inside the local network or VPN and do not publish the port to the Internet.
 
 ## Verification
 
-- `terminal(command="equipment-registry list")` returns metadata including username and no password field.
-- The first connection creates a `known_hosts` entry automatically.
-- Later connections fail closed when the pinned host key no longer matches.
-- The user's report contains no password or secret-bearing command output.
+- `equipment-registry list` returns devices with no password field.
+- The first connection to a device creates its `known_hosts` entry.
+- Your replies to the user contain no passwords.

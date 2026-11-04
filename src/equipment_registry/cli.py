@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import getpass
-import ipaddress
 import json
 import os
 import shutil
@@ -17,6 +16,9 @@ from .auth import create_admin
 from .connector import run_command
 from .storage import Registry
 
+# Interface web acessível na rede local por padrão (cadastro pelo navegador).
+DEFAULT_HOST = "0.0.0.0"  # nosec B104
+
 
 def data_dir() -> Path:
     return Path(os.environ.get("EQUIPMENT_REGISTRY_DATA_DIR", "~/.local/share/equipment-registry")).expanduser()
@@ -29,8 +31,12 @@ def main() -> int:
     init_parser.add_argument(
         "--force", action="store_true", help="Substituir deliberadamente o administrador existente"
     )
-    serve_parser = subparsers.add_parser("serve", help="Iniciar interface web local")
-    serve_parser.add_argument("--host", default="127.0.0.1")
+    serve_parser = subparsers.add_parser("serve", help="Iniciar interface web")
+    serve_parser.add_argument(
+        "--host",
+        default=DEFAULT_HOST,
+        help="Endereço de escuta (padrão: todas as interfaces)",
+    )
     serve_parser.add_argument("--port", type=int, default=8787)
     subparsers.add_parser("list", help="Listar equipamentos sem revelar senhas")
     backup_parser = subparsers.add_parser("backup", help="Criar backup SQLite consistente")
@@ -85,24 +91,6 @@ def main() -> int:
         if result.stderr:
             print(result.stderr, end="" if result.stderr.endswith("\n") else "\n", file=sys.stderr)
         return result.exit_status
-    if args.host not in {"127.0.0.1", "::1", "localhost"}:
-        try:
-            address = ipaddress.ip_address(args.host)
-        except ValueError:
-            parser.error("Use localhost ou um endereço IP literal válido.")
-        if not address.is_private or address.is_unspecified:
-            parser.error("O bind remoto só pode usar um endereço IP privado específico.")
-        if os.environ.get("EQUIPMENT_REGISTRY_ALLOW_REMOTE") != "1":
-            parser.error("Acesso à LAN exige EQUIPMENT_REGISTRY_ALLOW_REMOTE=1.")
-        if os.environ.get("EQUIPMENT_REGISTRY_ALLOW_INSECURE_HTTP") != (
-            "I_ACCEPT_PRIVATE_LAN_RISK"
-        ):
-            parser.error(
-                "HTTP na LAN exige confirmação explícita do risco com "
-                "EQUIPMENT_REGISTRY_ALLOW_INSECURE_HTTP=I_ACCEPT_PRIVATE_LAN_RISK."
-            )
-        if not (directory / "auth.json").exists():
-            parser.error("Crie o administrador localmente antes de liberar acesso pela LAN.")
     application = create_app()
     serve(application, host=args.host, port=args.port, threads=4)
     return 0

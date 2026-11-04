@@ -23,3 +23,15 @@ def test_uv_success_does_not_hide_stale_executable(tmp_path: Path) -> None:
         pytest.raises(SystemExit, match="Falha ao desinstalar"),
     ):
         uninstaller.uninstall_command(tmp_path, "/usr/bin/uv")
+
+def test_uninstall_removes_legacy_policy_block_only(tmp_path: Path) -> None:
+    soul = tmp_path / "SOUL.md"
+    legacy = f"{uninstaller.POLICY_START}\nantiga\n{uninstaller.POLICY_END}\n"
+    soul.write_text(
+        "# Minha alma\n\n" + legacy,
+        encoding="utf-8",
+    )
+    uninstaller.remove_policy(tmp_path)
+    content = soul.read_text(encoding="utf-8")
+    assert "# Minha alma" in content
+    assert uninstaller.POLICY_START not in content

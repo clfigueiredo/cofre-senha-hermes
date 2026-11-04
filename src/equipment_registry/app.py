@@ -118,8 +118,8 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
             remote_address = ipaddress.ip_address(request.remote_addr or "")
         except ValueError:
             abort(403)
-        if remote_address is None or not remote_address.is_loopback:
-            abort(403, "A configuração inicial só pode ser feita localmente.")
+        if remote_address is None or not (remote_address.is_loopback or remote_address.is_private):
+            abort(403, "A configuração inicial só pode ser feita pela rede local.")
         if request.method == "POST":
             password = request.form.get("password", "")
             confirmation = request.form.get("password_confirmation", "")

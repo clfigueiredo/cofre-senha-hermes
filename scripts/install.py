@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import ipaddress
 import json
 import os
 import shutil
@@ -12,16 +11,8 @@ import subprocess  # nosec B404
 from datetime import UTC, datetime
 from pathlib import Path
 
-POLICY_START = "<!-- cofre-senhas-hermes:policy:start -->"
-POLICY_END = "<!-- cofre-senhas-hermes:policy:end -->"
-POLICY = f"""{POLICY_START}
-## Política obrigatória do inventário de equipamentos
-
-Antes de qualquer tentativa de acessar, consultar, diagnosticar, configurar ou administrar um equipamento de infraestrutura, carregue e siga a skill `equipment-registry-ops` e resolva o alvo no inventário local. Não use credenciais lembradas do chat, histórico, memória, anotações ou acesso anterior para contornar o inventário. Se o alvo estiver ausente, ambíguo ou incompleto, interrompa o acesso e solicite o cadastro ou a correção.
-
-Jamais revele, repita, retorne, registre ou persista senhas de equipamentos em mensagens, logs, memória ou argumentos de comandos. A senha só pode ser descriptografada dentro do conector autorizado durante a conexão e deve permanecer apenas na memória do processo pelo tempo necessário.
-{POLICY_END}
-"""
+# Interface web acessível na rede local por padrão (cadastro pelo navegador).
+DEFAULT_HOST = "0.0.0.0"  # nosec B104
 
 
 def run(command: list[str], *, cwd: Path | None = None, env: dict[str, str] | None = None) -> None:
@@ -42,26 +33,6 @@ def systemd_quote(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def install_policy(hermes_home: Path) -> None:
-    soul = hermes_home / "SOUL.md"
-    hermes_home.mkdir(parents=True, exist_ok=True, mode=0o700)
-    original = soul.read_text(encoding="utf-8") if soul.exists() else ""
-    if POLICY_START in original and POLICY_END in original:
-        before, remainder = original.split(POLICY_START, 1)
-        _, after = remainder.split(POLICY_END, 1)
-        updated = before.rstrip() + "\n\n" + POLICY + after.lstrip("\n")
-    else:
-        updated = original.rstrip() + ("\n\n" if original.strip() else "") + POLICY
-    if updated != original:
-        if soul.exists():
-            stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
-            shutil.copy2(soul, soul.with_name(f"SOUL.md.backup-{stamp}"))
-        temporary = soul.with_suffix(".tmp")
-        temporary.write_text(updated, encoding="utf-8")
-        os.chmod(temporary, 0o600)
-        temporary.replace(soul)
-
-
 def install_skill(root: Path, hermes_home: Path) -> None:
     source = root / "skill" / "equipment-registry-ops"
     destination = hermes_home / "skills" / "forumtelecom" / "equipment-registry-ops"
@@ -74,11 +45,9 @@ def install_skill(root: Path, hermes_home: Path) -> None:
     shutil.copytree(source, destination)
 
 
-def install_service(host: str, port: int, data_dir: Path, insecure_private_lan: bool) -> None:
+def install_service(host: str, port: int, data_dir: Path) -> None:
     systemd_dir = Path.home() / ".config" / "systemd" / "user"
     systemd_dir.mkdir(parents=True, exist_ok=True)
-    allow_remote = "1" if host not in {"127.0.0.1", "::1", "localhost"} else "0"
-    insecure_ack = "I_ACCEPT_PRIVATE_LAN_RISK" if insecure_private_lan else ""
     unit = f"""[Unit]
 Description=Cofre de Senhas Hermes
 After=network-online.target
@@ -86,8 +55,6 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-Environment={systemd_quote(f"EQUIPMENT_REGISTRY_ALLOW_REMOTE={allow_remote}")}
-Environment={systemd_quote(f"EQUIPMENT_REGISTRY_ALLOW_INSECURE_HTTP={insecure_ack}")}
 Environment={systemd_quote(f"EQUIPMENT_REGISTRY_DATA_DIR={data_dir}")}
 ExecStart={systemd_quote(str(Path.home() / ".local/bin/equipment-registry"))} serve --host {host} --port {port}
 Restart=on-failure
@@ -108,27 +75,17 @@ WantedBy=default.target
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Instalar o Cofre de Senhas Hermes")
-    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument(
+        "--host",
+        default=DEFAULT_HOST,
+        help="Endereço de escuta da interface web (padrão: todas as interfaces)",
+    )
     parser.add_argument("--port", type=int, default=8787)
     parser.add_argument("--service", action="store_true", help="Criar e iniciar serviço systemd do usuário")
-    parser.add_argument(
-        "--insecure-private-lan",
-        action="store_true",
-        help="Aceitar explicitamente HTTP sem TLS ao usar um IP privado",
-    )
     parser.add_argument("--skip-tests", action="store_true")
     args = parser.parse_args()
     if not 1 <= args.port <= 65535:
         parser.error("A porta deve estar entre 1 e 65535.")
-    if args.host not in {"127.0.0.1", "::1", "localhost"}:
-        try:
-            address = ipaddress.ip_address(args.host)
-        except ValueError:
-            parser.error("Use localhost ou um endereço IP literal válido.")
-        if not address.is_private or address.is_unspecified:
-            parser.error("O instalador só permite bind remoto em endereço IP privado.")
-        if not args.insecure_private_lan:
-            parser.error("Bind na LAN exige --insecure-private-lan para aceitar o risco sem TLS.")
 
     root = Path(__file__).resolve().parents[1]
     hermes_home = Path(os.environ.get("HERMES_HOME", Path.home() / ".hermes")).expanduser()
@@ -161,35 +118,23 @@ def main() -> int:
     env["EQUIPMENT_REGISTRY_DATA_DIR"] = str(data_dir)
     run([str(Path.home() / ".local" / "bin" / "equipment-registry"), "list"], env=env)
     install_skill(root, hermes_home)
-    install_policy(hermes_home)
     manifest.write_text(
-        json.dumps({"version": "1.1.0", "data_dir": str(data_dir.resolve())}, indent=2) + "\n",
+        json.dumps({"version": "1.2.0", "data_dir": str(data_dir.resolve())}, indent=2) + "\n",
         encoding="utf-8",
     )
     os.chmod(manifest, 0o600)
     if args.service:
-        auth_path = data_dir / "auth.json"
-        if args.host not in {"127.0.0.1", "::1", "localhost"} and not auth_path.exists():
-            raise SystemExit(
-                "Recusado: defina primeiro o administrador com 'equipment-registry init' "
-                "antes de iniciar um serviço acessível pela rede privada."
-            )
-        install_service(args.host, args.port, data_dir, args.insecure_private_lan)
+        install_service(args.host, args.port, data_dir)
 
     print("INSTALL_OK")
     print(f"Dados: {data_dir}")
     print(f"Skill: {hermes_home / 'skills/forumtelecom/equipment-registry-ops'}")
-    print("Abra uma nova sessão do Hermes para carregar a política e a skill.")
+    print("Abra uma nova sessão do Hermes para carregar a skill.")
+    shown_host = "<ip-deste-servidor>" if args.host in {DEFAULT_HOST, "::"} else args.host
     if args.service:
-        print(f"Interface: http://{args.host}:{args.port}/setup")
+        print(f"Interface: http://{shown_host}:{args.port}/")
     else:
-        remote = ""
-        if args.host not in {"127.0.0.1", "::1", "localhost"}:
-            remote = (
-                "EQUIPMENT_REGISTRY_ALLOW_REMOTE=1 "
-                "EQUIPMENT_REGISTRY_ALLOW_INSECURE_HTTP=I_ACCEPT_PRIVATE_LAN_RISK "
-            )
-        print(f"Inicie: {remote}equipment-registry serve --host {args.host} --port {args.port}")
+        print(f"Inicie: equipment-registry serve --host {args.host} --port {args.port}")
     return 0
 
 

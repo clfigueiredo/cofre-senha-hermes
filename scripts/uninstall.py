@@ -10,6 +10,7 @@ import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
+# Bloco instalado por versões <= 1.1.0 no SOUL.md; mantido só para limpeza na desinstalação.
 POLICY_START = "<!-- cofre-senhas-hermes:policy:start -->"
 POLICY_END = "<!-- cofre-senhas-hermes:policy:end -->"
 
