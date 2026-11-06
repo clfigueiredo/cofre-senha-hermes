@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cofre Senha Hermes"
+  short_description: "Repo-specific patterns and workflows for cofre-senha-hermes"
+  default_prompt: "Use the cofre-senha-hermes repo skill to follow existing architecture, testing, and workflow conventions."
+policy:
+  allow_implicit_invocation: true
